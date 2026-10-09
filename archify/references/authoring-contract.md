@@ -327,7 +327,7 @@ First-draft shape: every message needs an `id`, `from`, `to`, and `label`; list 
 
 Stages express transformation or custody. Rows separate parallel streams. Label only data contracts, classifications, or cross-boundary movement that is not obvious.
 
-First-draft shape: declare `stages[]` (each a `{label}`), then place every node with integer `stage` and `row` — not `pos`/`size`. Flows are `flows[]` with `from`, `to`, and optional `label`.
+First-draft shape: declare `stages[]` (each a `{label}`), then give every node an integer `stage` — not `pos`/`size`. `row` (0–4) is optional: an omitted row takes the free row of its stage nearest the nodes it connects to in earlier stages, next to a same-stage partner, and clear of stage-skipping flows; set `row` only to override. Flows are `flows[]` with `from`, `to`, and `label` (required).
 
 Omit `meta.viewBox` to fit canvas width to all stages and nodes in either quality
 profile, including explicit node widths. Width uses content + 24px right padding

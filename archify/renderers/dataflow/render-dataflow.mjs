@@ -59,6 +59,57 @@ const { diagram: dataflow, template, outPath, sourceEvidence } = await loadDiagr
   defaultExample: 'product-analytics.dataflow.json'
 });
 
+// Fresh drafts often name only each node's stage. A node without `row` takes
+// the free row of its stage closest to the average row of the nodes it is
+// connected to in earlier stages (a stage's first unconnected node takes row
+// 0), so the main path runs straight. Stages are filled left to right and an
+// authored row is never moved.
+{
+  const DATAFLOW_ROWS = 5;
+  const nodesList = asArray(dataflow.nodes).filter((node) => node && typeof node.id === 'string');
+  const pending = nodesList.filter((node) => node.row === undefined && Number.isInteger(node.stage));
+  if (pending.length) {
+    const flows = asArray(dataflow.flows).filter(Boolean);
+    const byId = new Map(nodesList.map((node) => [node.id, node]));
+    const stages = [...new Set(pending.map((node) => node.stage))].sort((a, b) => a - b);
+    for (const stage of stages) {
+      const taken = new Set(nodesList.filter((node) => node.stage === stage && Number.isInteger(node.row)).map((node) => node.row));
+      for (const node of pending.filter((candidate) => candidate.stage === stage)) {
+        const neighbours = flows
+          .map((flow) => (flow.to === node.id ? byId.get(flow.from) : flow.from === node.id ? byId.get(flow.to) : null))
+          .filter((other) => other && Number.isInteger(other.row) && other.stage < stage);
+        // A same-stage neighbour runs vertically: sit next to it, never with
+        // another node of the stage in between.
+        const sameStage = flows
+          .map((flow) => (flow.to === node.id ? byId.get(flow.from) : flow.from === node.id ? byId.get(flow.to) : null))
+          .filter((other) => other && other !== node && other.stage === stage && Number.isInteger(other.row));
+        const wanted = neighbours.length ? neighbours.reduce((sum, other) => sum + other.row, 0) / neighbours.length
+          : sameStage.length ? sameStage[0].row + 1 : 0;
+        const free = Array.from({ length: DATAFLOW_ROWS }, (_, row) => row).filter((row) => !taken.has(row));
+        if (!free.length) break;
+        // A flow from an earlier stage that skips stages runs straight along
+        // its row; avoid a row where it would cross an intermediate node.
+        const blocked = (row) => neighbours.filter((other) => other.row === row && nodesList.some((between) => (
+          between !== node && between.row === row && between.stage > other.stage && between.stage < stage))).length;
+        const between = (row) => sameStage.reduce((count, other) => count + nodesList.filter((candidate) => (
+          candidate !== node && candidate !== other && candidate.stage === stage && Number.isInteger(candidate.row)
+          && candidate.row > Math.min(row, other.row) && candidate.row < Math.max(row, other.row))).length, 0);
+        // Leave a free neighbouring row for each same-stage partner still to come.
+        const partnersToCome = flows.filter((flow) => {
+          const other = flow.from === node.id ? byId.get(flow.to) : flow.to === node.id ? byId.get(flow.from) : null;
+          return other && other !== node && other.stage === stage && !Number.isInteger(other.row);
+        }).length;
+        const cramped = (row) => (partnersToCome > 0
+          && [row - 1, row + 1].filter((next) => next >= 0 && next < DATAFLOW_ROWS && !taken.has(next)).length < Math.min(2, partnersToCome) ? 1 : 0);
+        const cost = (row) => Math.abs(row - wanted) + 10 * (blocked(row) + between(row)) + 5 * cramped(row);
+        const row = free.reduce((best, candidate) => (cost(candidate) < cost(best) ? candidate : best));
+        node.row = row;
+        taken.add(row);
+      }
+    }
+  }
+}
+
 const layout = {
   stageY: 46,
   stageH: 36,

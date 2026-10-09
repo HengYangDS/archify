@@ -475,3 +475,30 @@ test('automatic dataflow routes across stages turn in a clear gap, not inside a 
   const { result, receipt } = inspect(t, diagram);
   assert.equal(result.status, 0, JSON.stringify(receipt.diagnostics));
 });
+
+// Before: every node without `row` failed schema/required before layout ran.
+test('nodes that omit row follow their upstream rows and pass showcase', t => {
+  const diagram = {
+    schema_version: 1, diagram_type: 'dataflow',
+    meta: { title: 'Log pipeline', output: 'diagram.html', quality_profile: 'showcase' },
+    stages: [{ label: 'Sources' }, { label: 'Collect' }, { label: 'Process' }, { label: 'Store' }],
+    nodes: [
+      { id: 'apps', type: 'frontend', label: 'Apps', stage: 0 },
+      { id: 'nodes', type: 'backend', label: 'Nodes', stage: 0 },
+      { id: 'collector', type: 'messagebus', label: 'Collector', stage: 1 },
+      { id: 'redact', type: 'security', label: 'Redact', stage: 2 },
+      { id: 'parse', type: 'backend', label: 'Parse', stage: 2 },
+      { id: 'sample', type: 'backend', label: 'Sample', stage: 2 },
+      { id: 'hot', type: 'database', label: 'Hot store', stage: 3 },
+      { id: 'cold', type: 'database', label: 'Cold store', stage: 3 },
+    ],
+    flows: [
+      { from: 'apps', to: 'collector', label: 'collector' }, { from: 'nodes', to: 'collector', label: 'collector' },
+      { from: 'collector', to: 'redact', label: 'redact' }, { from: 'redact', to: 'parse', label: 'parse' },
+      { from: 'parse', to: 'sample', label: 'sample' }, { from: 'parse', to: 'hot', label: 'hot' }, { from: 'sample', to: 'cold', label: 'cold' },
+    ],
+  };
+  const { result, receipt } = inspect(t, diagram);
+  assert.equal(result.status, 0, JSON.stringify(receipt.diagnostics));
+  assert.equal(receipt.ok, true);
+});
