@@ -67,6 +67,11 @@ Semantic checks: a realization runs from a non-interface to an interface
 
 ## Layout
 
+When no type has `row`, `col`, or `pos`, the renderer assigns cells itself: every
+inheritance or realization parent sits at least one row above its child, and
+the rows of types outside any hierarchy and the order within each row are
+chosen so the straight relationship lines cross least.
+
 `layout.mode: "grid"` (the default) places types by `row`/`col` on the banded
 grid shared with the ERD renderer: each column takes its widest type and each
 row its tallest. Types are centred in their row band so a relationship between

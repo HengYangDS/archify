@@ -452,7 +452,10 @@ hollow diamond at `from`). Realization must target an interface from a
 non-interface; inheritance must not cross the interface boundary; an
 inheritance cycle is rejected.
 
-Place types on the `row`/`col` grid with supertypes above their subtypes. Two
+Place types on the `row`/`col` grid with supertypes above their subtypes, or
+omit `row`, `col`, and `pos` on every type: the renderer then puts each
+supertype at least one row above its subtypes and picks the rows and order whose
+relationships cross least. Two
 or more automatic generalizations into one supertype draw as one hierarchy bus
 with a single triangle. Members never truncate: a type grows to its widest
 member up to `layout.typeMaxW` and longer members wrap at parameter boundaries.

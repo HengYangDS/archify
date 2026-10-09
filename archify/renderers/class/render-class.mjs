@@ -54,6 +54,109 @@ const { diagram: cd, template, outPath, sourceEvidence } = loadDiagram({
 });
 const locale = cd.meta.locale;
 
+// A first draft that places no type at all used to fail with one "needs grid
+// row/col" error per type. Place such a draft instead: every inheritance or
+// realization parent sits at least one row above its child (longest path from
+// the roots); a type outside every hierarchy takes the row, and each row the
+// order, whose straight centre lines cross least (shorter rows are centred; a
+// lone type may sit on a half column, which the class grid accepts).
+function automaticTypeCells(list, relationships) {
+  const ids = list.map((type) => type.id);
+  const links = relationships.filter((relationship) => relationship
+    && ids.includes(relationship.from) && ids.includes(relationship.to) && relationship.from !== relationship.to);
+  const hierarchy = links.filter((relationship) => ['inheritance', 'realization'].includes(relationship.kind));
+  const ranked = new Set(hierarchy.flatMap((link) => [link.from, link.to]));
+  const baseRow = new Map(ids.map((id) => [id, 0]));
+  for (let pass = 0; pass < ids.length; pass += 1) {
+    let changed = false;
+    for (const { from: child, to: parent } of hierarchy) {
+      if (baseRow.get(child) < baseRow.get(parent) + 1) { baseRow.set(child, baseRow.get(parent) + 1); changed = true; }
+    }
+    if (!changed) break;
+  }
+  const orient = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+  const permutations = (items) => items.length <= 1 ? [items] : items.flatMap((item, index) => (
+    permutations([...items.slice(0, index), ...items.slice(index + 1)]).map((rest) => [item, ...rest])));
+  const solve = (row) => {
+    const rows = [];
+    for (const id of ids) (rows[row.get(id)] ||= []).push(id);
+    const width = Math.max(...rows.map((members) => (members ? members.length : 0)));
+    const place = (members, target) => {
+      const offset = members.length === 1 ? (width - 1) / 2 : Math.floor((width - members.length) / 2);
+      members.forEach((id, index) => target.set(id, index + offset));
+    };
+    const score = (col) => {
+      const centre = (id) => [col.get(id) * 2, row.get(id) * 2];
+      let total = 0;
+      for (const [index, link] of links.entries()) {
+        const a = centre(link.from);
+        const b = centre(link.to);
+        total += Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+        for (const other of links.slice(index + 1)) {
+          if ([other.from, other.to].some((id) => id === link.from || id === link.to)) continue;
+          const c = centre(other.from);
+          const d = centre(other.to);
+          if (orient(a, b, c) * orient(a, b, d) < 0 && orient(c, d, a) * orient(c, d, b) < 0) total += 1000;
+        }
+        // A straight relationship must not run through a third type.
+        for (const id of ids) {
+          if (id === link.from || id === link.to) continue;
+          const [x, y] = centre(id);
+          if (orient(a, b, [x, y]) === 0 && x >= Math.min(a[0], b[0]) && x <= Math.max(a[0], b[0])
+            && y >= Math.min(a[1], b[1]) && y <= Math.max(a[1], b[1])) total += 500;
+        }
+      }
+      return total + rows.filter((members) => !members).length * 300;
+    };
+    let col = new Map();
+    for (const members of rows) {
+      if (!members) continue;
+      const anchor = (id) => {
+        const cols = links.filter((link) => link.from === id || link.to === id)
+          .map((link) => (link.from === id ? link.to : link.from)).filter((other) => col.has(other)).map((other) => col.get(other));
+        return cols.length ? cols.reduce((sum, value) => sum + value, 0) / cols.length : Infinity;
+      };
+      place([...members].sort((a, b) => anchor(a) - anchor(b) || ids.indexOf(a) - ids.indexOf(b)), col);
+    }
+    let best = score(col);
+    for (let sweep = 0; sweep < 2; sweep += 1) {
+      for (const members of rows) {
+        if (!members || members.length > 6) continue;
+        for (const order of permutations(members)) {
+          const candidate = new Map(col);
+          place(order, candidate);
+          const value = score(candidate);
+          if (value < best) { best = value; col = candidate; }
+        }
+      }
+    }
+    return { col, best };
+  };
+  let row = new Map(baseRow);
+  let result = solve(row);
+  const depth = Math.max(...baseRow.values());
+  for (const id of ids.filter((id) => !ranked.has(id))) {
+    for (let candidateRow = 0; candidateRow <= depth + 1; candidateRow += 1) {
+      if (candidateRow === row.get(id)) continue;
+      const trial = new Map(row).set(id, candidateRow);
+      const attempt = solve(trial);
+      if (attempt.best < result.best) { row = trial; result = attempt; }
+    }
+  }
+  return new Map(ids.map((id) => [id, { row: row.get(id), col: result.col.get(id) }]));
+}
+{
+  const list = asArray(cd.types).filter((type) => type && typeof type.id === 'string');
+  const ids = list.map((type) => type.id);
+  const unplaced = list.length > 0 && list.length === asArray(cd.types).length && new Set(ids).size === ids.length
+    && (!cd.layout || cd.layout.mode === undefined || cd.layout.mode === 'grid')
+    && list.every((type) => type.row === undefined && type.col === undefined && type.pos === undefined);
+  if (unplaced) {
+    const cells = automaticTypeCells(list, asArray(cd.relationships));
+    for (const type of list) Object.assign(type, cells.get(type.id));
+  }
+}
+
 // The grid is always on: a type without `pos` is placed by its row/col cell.
 // Gaps are wider than the ERD's because a relationship here carries a marker
 // at one end and usually a label, and both need a corridor to sit in.
