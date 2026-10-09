@@ -275,3 +275,66 @@ test('architecture: a short label gap names the shift that clears it', (t) => {
   const repaired = validate('architecture', input);
   assert.equal(repaired.status, 0, JSON.stringify(repaired.receipt.diagnostics, null, 2));
 });
+
+// Before: a draft with no pos, row/col or layout put every component at NaN and
+// the router threw "Cannot read properties of undefined" (internal/unclassified).
+test('architecture: a draft without any placement is laid out left to right and passes showcase', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-unplaced-'));
+  try {
+    const input = path.join(tmp, 'unplaced.json');
+    const doc = {
+      schema_version: 1,
+      diagram_type: 'architecture',
+      meta: { title: 'Ride dispatch', output: 'unplaced.html', quality_profile: 'showcase' },
+      components: [
+        { id: 'rider', type: 'frontend', label: 'Rider app', sublabel: 'iOS + Android' },
+        { id: 'gateway', type: 'backend', label: 'API gateway' },
+        { id: 'identity', type: 'security', label: 'Identity' },
+        { id: 'dispatch', type: 'backend', label: 'Dispatch' },
+        { id: 'matching', type: 'backend', label: 'Matching' },
+        { id: 'trips', type: 'database', label: 'Trips DB' },
+        { id: 'driver', type: 'frontend', label: 'Driver app' },
+      ],
+      boundaries: [{ label: 'Core services', kind: 'region', wraps: ['dispatch', 'matching', 'trips'] }],
+      connections: [
+        { from: 'rider', to: 'gateway', label: 'request ride' },
+        { from: 'gateway', to: 'identity', label: 'verify token' },
+        { from: 'gateway', to: 'dispatch', label: 'create trip' },
+        { from: 'dispatch', to: 'matching', label: 'find drivers' },
+        { from: 'dispatch', to: 'trips', label: 'persist trip' },
+        { from: 'matching', to: 'driver', label: 'offer' },
+      ],
+    };
+    const source = JSON.stringify(doc);
+    fs.writeFileSync(input, source);
+    const { status, receipt } = validate('architecture', input);
+    assert.equal(status, 0, JSON.stringify(receipt.diagnostics));
+    assert.equal(fs.readFileSync(input, 'utf8'), source, 'automatic placement must not rewrite authored input');
+    const result = layout(input);
+    const x = new Map(result.components.map((component) => [component.id, component.x]));
+    for (const { from, to } of doc.connections) assert.ok(x.get(from) < x.get(to), `${from} sits left of ${to}`);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('architecture: any authored placement keeps the existing behaviour', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'archify-partial-'));
+  try {
+    const input = path.join(tmp, 'partial.json');
+    fs.writeFileSync(input, JSON.stringify({
+      schema_version: 1,
+      diagram_type: 'architecture',
+      meta: { title: 'Partial', output: 'partial.html', quality_profile: 'showcase' },
+      components: [
+        { id: 'a', type: 'backend', label: 'A', pos: [40, 80] },
+        { id: 'b', type: 'backend', label: 'B', pos: [260, 80] },
+      ],
+      connections: [{ from: 'a', to: 'b' }],
+    }));
+    const result = layout(input);
+    assert.deepEqual(result.components.map((component) => [component.x, component.y]), [[40, 80], [260, 80]]);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});

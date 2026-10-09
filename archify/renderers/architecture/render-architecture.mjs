@@ -56,6 +56,128 @@ const { diagram: arch, template, outPath, sourceEvidence } = await loadDiagramWi
   argv: cliArgs,
 });
 
+// A first draft that places no component at all (no layout, pos or row/col)
+// put every box at NaN and crashed the router with an internal error. Lay
+// such a draft out left to right instead: each component's column is its
+// longest connection path from a source (back edges of cycles ignored), rows
+// follow the previous column's order, column gaps fit the widest label that
+// crosses them, and boxes without size widen to their own text.
+const AUTOMATIC_ORIGIN = [40, 80];
+const AUTOMATIC_ROW_GAP = 48;
+function automaticArchitecturePlacement() {
+  const list = asArray(arch.components).filter((component) => component && typeof component.id === 'string');
+  if (arch.layout || !list.length || list.length !== asArray(arch.components).length) return;
+  if (list.some((component) => component.pos !== undefined || component.row !== undefined || component.col !== undefined)) return;
+  const ids = list.map((component) => component.id);
+  if (new Set(ids).size !== ids.length) return;
+  const links = asArray(arch.connections).filter((connection) => (
+    connection && ids.includes(connection.from) && ids.includes(connection.to) && connection.from !== connection.to
+  ));
+  const outgoing = new Map(ids.map((id) => [id, []]));
+  for (const link of links) outgoing.get(link.from).push(link);
+  // Drop back edges found by a DFS in authored order so ranks are well defined.
+  const forward = new Set();
+  const state = new Map();
+  const visit = (id) => {
+    state.set(id, 'open');
+    for (const link of outgoing.get(id)) {
+      const next = state.get(link.to);
+      if (next === 'open') continue;
+      forward.add(link);
+      if (!next) visit(link.to);
+    }
+    state.set(id, 'done');
+  };
+  const incoming = new Set(links.map((link) => link.to));
+  for (const id of [...ids.filter((id) => !incoming.has(id)), ...ids]) if (!state.has(id)) visit(id);
+  const rank = new Map(ids.map((id) => [id, 0]));
+  for (let pass = 0; pass < ids.length; pass += 1) {
+    let changed = false;
+    for (const link of forward) {
+      if (rank.get(link.to) < rank.get(link.from) + 1) { rank.set(link.to, rank.get(link.from) + 1); changed = true; }
+    }
+    if (!changed) break;
+  }
+  // Boundary membership decides the row band: components with the same set of
+  // boundaries share a band, so a frame drawn around one band's members never
+  // encloses a component from another. Bands sharing an outer boundary stay
+  // adjacent; components outside every boundary come last.
+  const boundaryList = asArray(arch.boundaries).filter((boundary) => boundary && Array.isArray(boundary.wraps));
+  const membership = (id) => boundaryList
+    .map((boundary, index) => (boundary.wraps.includes(id) ? index : -1))
+    .filter((index) => index >= 0)
+    .sort((a, b) => boundaryList[b].wraps.length - boundaryList[a].wraps.length || a - b);
+  const keyOf = (id) => {
+    const key = membership(id);
+    return key.length ? key.join('.') : '~';
+  };
+  const bandKeys = [...new Set(ids.map(keyOf))].sort((a, b) => {
+    if (a === '~' || b === '~') return a === '~' ? 1 : -1;
+    const left = a.split('.').map(Number);
+    const right = b.split('.').map(Number);
+    for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
+      if (left[index] !== right[index]) return ids.indexOf(boundaryList[left[index]].wraps.find((id) => ids.includes(id)) ?? '')
+        - ids.indexOf(boundaryList[right[index]].wraps.find((id) => ids.includes(id)) ?? '') || left[index] - right[index];
+    }
+    return left.length - right.length;
+  });
+  const columns = [];
+  for (const id of ids) (columns[rank.get(id)] ||= []).push(id);
+  for (let index = 0; index < columns.length; index += 1) columns[index] ||= [];
+  const row = new Map();
+  for (const [index, column] of columns.entries()) {
+    const anchor = (id) => {
+      const rows = links.filter((link) => link.to === id && rank.get(link.from) < index).map((link) => row.get(link.from));
+      return rows.length ? rows.reduce((sum, value) => sum + value, 0) / rows.length : Infinity;
+    };
+    column.sort((a, b) => bandKeys.indexOf(keyOf(a)) - bandKeys.indexOf(keyOf(b))
+      || (index > 0 ? anchor(a) - anchor(b) : 0) || ids.indexOf(a) - ids.indexOf(b));
+    const used = new Map();
+    for (const id of column) {
+      const key = keyOf(id);
+      row.set(id, used.get(key) || 0);
+      used.set(key, (used.get(key) || 0) + 1);
+    }
+  }
+  const bandRows = new Map(bandKeys.map((key) => [key, Math.max(...columns.map((column) => column.filter((id) => keyOf(id) === key).length))]));
+  const byId = new Map(list.map((component) => [component.id, component]));
+  const textWidth = (text, unit) => (text ? Math.ceil(textUnits(text) * unit) : 0);
+  const sizeOf = (component) => (Array.isArray(component.size) ? component.size : [
+    Math.max(layout.defaultW, textWidth(component.label, 6.6) + 16, textWidth(component.sublabel, 4.8) + 28, textWidth(component.tag, 4.8) + 28),
+    layout.defaultH,
+  ]);
+  const columnW = columns.map((column) => Math.max(layout.defaultW, ...column.map((id) => sizeOf(byId.get(id))[0])));
+  const rowH = Math.max(...list.map((component) => sizeOf(component)[1]));
+  const gapAfter = columns.map((_, index) => Math.max(96, ...links
+    .filter((link) => link.label && Math.min(rank.get(link.from), rank.get(link.to)) <= index
+      && Math.max(rank.get(link.from), rank.get(link.to)) > index)
+    .map((link) => textWidth(link.label, 6.6) + 56)));
+  let x = AUTOMATIC_ORIGIN[0];
+  const columnX = columnW.map((width, index) => { const left = x; x += width + gapAfter[index]; return left; });
+  // Between bands leave room for a frame's 30px top pad and title plus the
+  // previous frame's 50px bottom pad.
+  const bandY = new Map();
+  let y = AUTOMATIC_ORIGIN[1] + (bandKeys[0] === '~' ? 0 : 30);
+  for (const key of bandKeys) {
+    bandY.set(key, y);
+    y += bandRows.get(key) * (rowH + AUTOMATIC_ROW_GAP) - AUTOMATIC_ROW_GAP + (bandKeys.length > 1 ? 104 : 0);
+  }
+  for (const [index, column] of columns.entries()) {
+    for (const id of column) {
+      const component = byId.get(id);
+      const key = keyOf(id);
+      const [width, height] = sizeOf(component);
+      // Centre a short run against its band so straight rows line up.
+      const offset = Math.floor((bandRows.get(key) - column.filter((other) => keyOf(other) === key).length) / 2);
+      if (!Array.isArray(component.size) && width !== layout.defaultW) component.size = [width, height];
+      component.pos = [
+        columnX[index] + Math.round((columnW[index] - width) / 2),
+        bandY.get(key) + (row.get(id) + offset) * (rowH + AUTOMATIC_ROW_GAP),
+      ];
+    }
+  }
+}
+
 const grid = gridLayout(arch);
 
 const layout = {
@@ -85,6 +207,8 @@ const LEGEND_CATALOG = [
   'messagebus',
   'external',
 ].map((kind) => ({ kind, label: i18nText(arch.meta.locale, `legend.architecture.${kind}`) }));
+
+automaticArchitecturePlacement();
 
 // ---- Measure components from free coordinates --------------------------------
 function measureComponent(c) {

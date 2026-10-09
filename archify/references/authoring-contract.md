@@ -285,6 +285,8 @@ Choose overview or mechanism detail using [Composition and meaning](authoring-de
 
 Grid placement is preferred when the schema supports it. Free positions are appropriate for a bounded exception, not for prose-level coordinate planning. Keep external actors outside the system boundary when that is factually true. A boundary is drawn as the padded box around all of its members, so place them as one compact axis-aligned cluster (no empty bay that lets a non-member sit inside the padded frame) and keep every non-member outside that box; `layout/boundary-encloses-non-member` reports a component the box swallows in showcase quality. Standard retains its existing acceptance behavior.
 
+When no component has `pos` or `row`/`col` and there is no `layout`, the renderer places the draft itself: columns follow the longest connection path from each source (left to right), components with the same boundaries share one row band so frames never swallow non-members, and boxes without `size` widen to their text. Use it for a quick first draft; place components yourself when a specific reading path matters. Any authored placement turns it off.
+
 ### Workflow
 
 Lanes express responsibility or phase. Columns `0..5` express logical
