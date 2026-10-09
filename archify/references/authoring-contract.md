@@ -27,7 +27,10 @@ Do not invent fields. Before writing any new field, enum, or constrained text, r
 
 Use schema v2 for new workflows and keep schema v1 when an existing source must
 retain fixed geometry. In both versions, `col` stays in `0..5` and semantic
-edge labels are never deleted as a spacing repair. Do not change only
+edge labels are never deleted as a spacing repair. A draft may omit `col` on
+every node (with no phase or group columns): each node then takes its longest
+forward step count from a start node, a same-lane clash moves right, and a
+lane hand-off may share a column when six columns are otherwise too few. Do not change only
 `schema_version` when absolute coordinates exist: follow the canonical
 [migration and layout-receipt contract](../renderers/workflow/README.md#migration-and-layout-receipt).
 The complete normative invariants live in the workflow renderer's
@@ -367,7 +370,7 @@ a tag whose tables do not fill one rectangle earns no band, and because the band
 is the only place a domain name is drawn the renderer reports
 `erd/domain-not-drawn` rather than publishing a diagram that cannot name the
 domain. Absolute
-coordinates have no grid cells at all, so a tagged table always needs `row`/`col`.
+coordinates have no grid cells at all, so a placed tagged table always needs `row`/`col`.
 Order parent/core tables
 toward the shared boundary and
 place their direct children beside or beneath them. Columns read left to right and

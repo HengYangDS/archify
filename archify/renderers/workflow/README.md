@@ -47,7 +47,7 @@ Workflow JSON files must set:
 
 Use `schema_version: 2` for new workflows. Its readable layout compiler treats
 every `col` as a logical rank in `0..5` and derives geometry from the measured
-document. `schema_version: 1` remains the fixed legacy contract for existing
+document. When no node has `col` and no phase or group names a column, `render-workflow.mjs` assigns ranks first: the longest forward path from a start node (cycle-closing edges ignored), same-lane clashes moved right, and lane hand-offs allowed to share a column if the strict chain exceeds six columns (a longer chain is reported as `layout/constraint`). `schema_version: 1` remains the fixed legacy contract for existing
 sources; valid v1 output is preserved byte-for-byte and never silently
 reinterpreted as v2.
 
