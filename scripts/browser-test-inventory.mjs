@@ -24,6 +24,7 @@ export const browserTestFiles = [
   'intent-trace-browser.test.mjs',
   'semantic-lens-browser.test.mjs',
   'reading-address-browser.test.mjs',
+  'reader-query-availability-browser.test.mjs',
   'route-probe-browser.test.mjs',
   'focus-browser.test.mjs',
   'passport-explanation-browser.test.mjs',
