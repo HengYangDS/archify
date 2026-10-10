@@ -7,13 +7,13 @@
   "fps": 10,
   "frameCount": 54,
   "durationSeconds": 5.4,
-  "bytes": 853721,
-  "sha256": "3076459842b0bc7d9076dce2b0fa843852aa26fd4b710adb04d802d3d4b6b05e",
+  "bytes": 858160,
+  "sha256": "801218362c89ce3eb29059598d05cab326dc75eb6a3c0d815d5177b5178c0a0e",
   "scenes": [
     {
       "id": "signal-flow",
       "artifact": "docs/gallery/artifacts/agent-tool-call.workflow.html",
-      "artifactSha256": "e85dac4c0d590eb5ff098d095c10193784b29ccdf453496f4887ba0b91d2672d",
+      "artifactSha256": "2f1808fd78dffc53ec6dd3a679d40914c1a8bfe3be2afc000e88d4f1515c7549",
       "hash": "#focus=planner&reach=downstream",
       "eyebrow": "WORKFLOW · SIGNAL FLOW",
       "title": "Agent Tool Call",
@@ -31,7 +31,7 @@
     {
       "id": "classic",
       "artifact": "docs/gallery/artifacts/cache-miss.sequence.html",
-      "artifactSha256": "6fd0d8c1a3581e1e7c28dfdb52b6172c7bb82e52d9a5ace2f6c439aa0943b0e6",
+      "artifactSha256": "ae9243aec40e81cbe64dc1b59b0a5f4e1bc12b4c07175214d7ae2dd72c57bec6",
       "hash": "#route=web~db",
       "eyebrow": "SEQUENCE · CLASSIC",
       "title": "Cache Miss Request",
