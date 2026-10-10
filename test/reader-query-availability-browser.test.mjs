@@ -91,4 +91,32 @@ test('an occurrence-only diagram does not report unavailable relationship querie
     assert.equal(await run(`getComputedStyle(document.getElementById('btn-route-probe')).display === 'none'`), incomplete);
     assert.deepEqual(await run('queryErrors'), []);
   }
+  const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+  const links = new Set(Array.from(readme.matchAll(/\]\((examples\/[^)\s]+\.html)\)/g), match => match[1]));
+  const examples = fs.readdirSync(path.join(root, 'examples'))
+    .filter(name => name.endsWith('.architecture.json'))
+    .map(name => JSON.parse(fs.readFileSync(path.join(root, 'examples', name), 'utf8')).meta.output)
+    .filter(output => links.has(output));
+  assert.ok(examples.length, 'README links architecture examples with authoritative inputs');
+  for (const example of examples) {
+    const loaded = browser.cdp.waitFor('Page.loadEventFired', session);
+    await send('Page.navigate', { url: pathToFileURL(path.join(root, example)).href });
+    await loaded;
+    await run('Archify.viewerChromeLayout.whenStable()');
+    const complete = await run('Archify.guide.facts()');
+    assert.ok(complete.nodes > 0 && complete.relationships > 0, `${example} has authored graph facts`);
+    const id = await run(`document.querySelector('svg [data-edge-from]')?.getAttribute('data-edge-from')`);
+    assert.ok(id, `${example} provides an authored relationship`);
+    await run(`Archify.focus.set(${JSON.stringify(id)}, {toggle:false,updateUrl:false})`);
+    assert.equal(await run(`Archify.focus.reach('downstream',{reveal:false,updateUrl:false})`), true);
+    await run('Archify.focus.clear({preserveView:true,updateUrl:false})');
+    await run(`document.querySelector('svg').setAttribute('data-relationship-queries', 'unavailable')`);
+    await run(`Archify.focus.set(${JSON.stringify(id)}, {toggle:false,updateUrl:false})`);
+    assert.match(await run(`document.getElementById('focus-summary').textContent`), /unavailable/i,
+      `${example} explains its declared query boundary`);
+    assert.equal(await run(`Archify.focus.reach('downstream',{reveal:false,updateUrl:false})`), false);
+    assert.equal(await run('Archify.focus.reachabilitySnapshot()'), null);
+    assert.deepEqual(await run('Archify.guide.facts()'), { nodes: complete.nodes, relationships: null });
+    assert.deepEqual(await run('queryErrors'), []);
+  }
 });
