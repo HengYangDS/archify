@@ -810,7 +810,7 @@ svg {
 .diagram-nav button:disabled { opacity: 0.38; cursor: default; }
 /* The Guide stays on the ? shortcut; Map only earns dock space once the
    reader has zoomed past the full diagram (or opened it from the keyboard). */
-.diagram-nav button[hidden] { display: none; }
+.diagram-nav button[hidden] { display: none !important; }
 .diagram-container:not(.is-pannable) #btn-overview-map:not([data-radar-requested]):not(:focus) { display: none; }
 .diagram-nav button:disabled:hover { background: transparent; }
 .diagram-nav #btn-route-probe,
