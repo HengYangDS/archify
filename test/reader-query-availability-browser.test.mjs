@@ -88,6 +88,7 @@ test('an occurrence-only diagram does not report unavailable relationship querie
     else assert.match(guide, /1 relationship/);
     assert.equal(await run(`document.querySelector('[data-guide-action="route"]').hidden`), incomplete);
     assert.equal(await run(`getComputedStyle(document.querySelector('[data-guide-action="route"]')).display === 'none'`), incomplete);
+    assert.equal(await run(`getComputedStyle(document.getElementById('btn-route-probe')).display === 'none'`), incomplete);
     assert.deepEqual(await run('queryErrors'), []);
   }
 });
