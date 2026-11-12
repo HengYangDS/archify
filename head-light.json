@@ -1,0 +1,27 @@
+{
+  "page": {
+    "file": "head.html",
+    "sha256": "2d43a1d43844f7954eafb97594f25b8de35620f2462b7cf3ba34b81a0d6f5dd4"
+  },
+  "panel": "p-path",
+  "theme": "light",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "deviceScaleFactor": 1.5,
+  "browser": {
+    "executable": "chrome-headless-shell",
+    "version": "156.0.8078.4"
+  },
+  "playwrightCore": "1.65.0",
+  "box": {
+    "width": 848,
+    "height": 785
+  },
+  "image": {
+    "file": "head-light.png",
+    "sha256": "20a927448513bbfd9f610c87b587d06f3f585c05ddbe82b849083c06d16abdd4"
+  },
+  "errors": []
+}
